@@ -1,0 +1,19 @@
+{
+  "name": "devtools-presigned-upload-adr",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/upload_workflow.ts",
+    "test": "tsx src/upload_workflow.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
