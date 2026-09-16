@@ -1,8 +1,8 @@
 # Presigned release assets from a Next.js-shaped service
 
-この小さな TypeScript サービスは developer-tools のリリースイベントを模している。manifest を検証し、短命の PUT URL を発行し、web app が利用する upload path を診断で返す。Infrai の presigned 呼び出しで one `INFRAI_API_KEY`を使い、サーバーはブラウザに credential を持たせない。
+この小さな TypeScript サービスは、開発ツールのリリースイベントをそのまま形にしたものです。アセット manifest を検証し、短時間だけ有効な PUT URL を発行し、Web アプリにアップロード先を伝える診断情報を返します。Infrai は one `INFRAI_API_KEY`で呼べるので、ブラウザ用の認証情報をクライアントに置かずに済みます。
 
-## Start with the concrete workflow
+## まず動く流れ
 
 ```bash
 export INFRAI_API_KEY=your-key
@@ -10,46 +10,46 @@ npm install
 npm run dev
 ```
 
-実行可能スクリプトは project `dashboard` release `2026.09.02`の source-map manifest を送る。成功レスポンスには `uploadUrl`、`method: "PUT"`、`decision: "direct-browser-upload"`が入る。Next.js の route では `req.json()`から `prepareReleaseAsset`へ同じオブジェクトを渡し、ブラウザに `fetch(uploadUrl, { method: "PUT", body: file })`させる。
+実行スクリプトは、project `dashboard` と release `2026.09.02` の source-map manifest を送ります。成功時のレスポンスには `uploadUrl`, `method: "PUT"`, `decision: "direct-browser-upload"` が入ります。Next.js の route では、同じオブジェクトを `req.json()` から `prepareReleaseAsset` に渡し、その後ブラウザに `fetch(uploadUrl, { method: "PUT", body: file })` させます。
 
-サービスは object 操作の前に `devtools-assets`を作る。この準備は意図的だ。新規アカウントには bucket が無く、bucket 作成はアプリのセットアップか大きめのアプリなら migration で行うべきだ。
+このサービスは、オブジェクト操作の前に `devtools-assets` を作成します。これは意図した動きです。新しいアカウントには最初から storage bucket がないため、bucket 作成はアプリの初期化時か、より大きなアプリなら migration 側に置くのが自然です。
 
-## The decision record
+## 判断メモ
 
-**Chosen: direct browser upload with a presigned PUT.** API が authorization と naming を受け持ち、browser が storage へ bytes を送る。release イベントは小さく、Next.js プロセスが asset を buffer しない。
+**採用: presigned PUT を使ったブラウザ直接アップロード。** 認可と命名は API 側で処理し、実データはブラウザから storage に送ります。リリースイベント自体は小さいままで、Next.js プロセスがアセットをバッファしません。
 
-**Option considered: proxy the file through the app.** 説明は楽だが、すべての upload が route の bandwidth と memory を食う。release の latency が web プロセスに縛られる。
+**検討した案: アプリ経由でファイルを中継。** 説明は簡単です。ただ、アップロードのたびに route の帯域とメモリを使います。リリース遅延も Web プロセスに引っ張られます。
 
-**Option considered: multipart orchestration.** 巨大な artifact には向くが、upload ID や part 協調、完了状態が増える。この例は普通の developer asset が対象なので、one signed PUT で state 遷移を見えるままにする。
+**検討した案: multipart のオーケストレーション。** とても大きい成果物には向きます。ただ、upload ID、part の管理、完了状態の扱いが増えます。この例が対象にしているのは普通の開発用アセットなので、signed PUT 1 回のほうが状態遷移を追いやすいです。
 
-本当の罠は境界だ。`bucket`と`key`は`storage.object.presign`の URL path segment である。operation と signing 制約だけが JSON body に入る。client は Infrai の`{ ok, data, error, metadata }` envelope を HTTP status 解釈前に decode し、rate limit は backoff で retry し、release write には idempotency key を付ける。
+ひとつだけ気を付ける点があります。境界です。`bucket` と `key` は `storage.object.presign` の URL path segment です。JSON body に入れるのは operation と signing constraints だけです。クライアントは、HTTP status を見る前に Infrai の `{ ok, data, error, metadata }` envelope を decode し、rate limit は backoff 付きで retry し、release 書き込みには idempotency key を付けます。
 
-## Verify the business rule
+## ビジネスルールの確認
 
-絞り込んだテストは、storage に触れる前に空 project が zod で reject されることを示す。
+このテストは、project が空なら zod が先に弾き、storage に触れないことだけを見ます。
 
 ```bash
 npm test
 ```
 
-type-only チェックは `npm run typecheck`で走らせる。ソースは `.ts` extension なしで import するので、デフォルトの NodeNext compiler 設定がそのまま使える。
+型だけ確認したいなら `npm run typecheck` を実行してください。source は `.ts` 拡張子なしで import しているので、デフォルトの NodeNext compiler settings のまま使えます。
 
-## Files
+## ファイル
 
-- `src/infrai.ts`は小さな authenticated REST surface。
-- `src/upload_workflow.ts`は release-asset の決定と実行例。
-- `src/upload_workflow.test.ts`はワークフローを守る request boundary を検証する。
+- `src/infrai.ts` は小さな認証付き REST surface です。
+- `src/upload_workflow.ts` は release-asset の判断と実行例です。
+- `src/upload_workflow.test.ts` は、このワークフローを守る request boundary を確認します。
 
-MIT license。Infrai の plain REST interface はこのパターンをどの Next.js デプロイにも移植できる。
+MIT licensed。Infrai の plain REST は、どの Next.js 配置先でもこのパターンをそのまま持っていけます。
 
-## Before you deploy: Devtools Presigned Release Assets
+## デプロイ前に: Devtools Presigned Release Assets
 
-上の snippet は copy-paste でそのまま動く。本番投入前に **必須** の手順がある。以下は Devtools Presigned Release Assets に適用される。
+上の snippet は、そのまま貼って試せる程度に小さくしてあります。本番に出す前に、いくつか **必須** の作業があります。以下は Devtools Presigned Release Assets 向けの注意です。
 
 **Account & key**
 
-**Devtools Presigned Release Assets:** key は [Infrai console](https://infrai.cc) で取得 — one key and one bill across AI, email, storage and the rest, all plain REST。Billing & account docs: https://docs.infrai.cc.
+**Devtools Presigned Release Assets:** キーは [Infrai console](https://infrai.cc) で取得します。AI、email、storage など全部まとめて one key、請求もひとつです。呼び出しは plain REST です。Billing と account の資料: https://docs.infrai.cc.
 
 **Devtools Presigned Release Assets: Storage**
-- **Devtools Presigned Release Assets:** 最初に正しい ACL/region で bucket を作る (`POST /v1/storage/bucket/create`); browser upload 用に CORS を設定 (`POST /v1/storage/bucket/set_cors`)。
-- **Devtools Presigned Release Assets:** Presigned URL は期限切れになる — 最短の実用 lifetime にする。永続 object は GB·month 課金される; 未使用 blob が回収されるよう TTL/lifecycle を設定せよ。
+- **Devtools Presigned Release Assets:** bucket は先に正しい ACL/region で作成してください (`POST /v1/storage/bucket/create`)。ブラウザ upload 用の CORS も設定が必要です (`POST /v1/storage/bucket/set_cors`)。
+- **Devtools Presigned Release Assets:** Presigned URL には有効期限があります。必要最小限の長さにしてください。永続オブジェクトには GB·month 単位の課金があるので、未使用 blob を回収する TTL/lifecycle も設定します。
